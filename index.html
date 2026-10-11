@@ -247,6 +247,9 @@ img.ghs{display:block;flex:none;max-width:none;clip-path:polygon(50% 0,100% 50%,
 .lic .fine{font-size:.78rem;opacity:.85}
 .lic .wm{align-self:flex-end;font-family:var(--f-mono);font-size:.64rem;letter-spacing:.1em;opacity:.5}
 .tablewrap{overflow-x:auto}
+.pngout{display:flex;flex-direction:column;gap:8px}
+.pngout:empty{display:none}
+.pngprev{display:block;width:100%;max-width:560px;height:auto;border:1px solid var(--line);border-radius:8px}
 @media (max-width:420px){.q{font-size:1.25rem}.task{padding:16px}.lic{padding:18px 14px}.opt .ghs{width:96px;height:96px}}
 </style>
 
@@ -650,33 +653,34 @@ function endStation(){
   $('#a3').onclick = home;
 }
 
-/* ---------- Führerschein ---------- */
-function licence(){
-  S.si = -1; S.cur = null; save();
-  const pad = n => String(n).padStart(2,'0'), code = 'LF8-V'+pad(S.attempt)+'-D'+pad(S.runs);
-  const all = S.results.every((r,i)=>hasStamp(i)), rs = S.results.filter(Boolean);
-  const avg = rs.length ? Math.round(rs.reduce((a,r)=>a+r.pct,0)/N) : 0, pts = rs.reduce((a,r)=>a+r.pts,0), sec = rs.reduce((a,r)=>a+(r.sec||0),0);
-  const stSum = rs.reduce((a,r)=>a+r.stars,0), open = STATIONS.map((s,i)=>hasStamp(i)?null:i+1).filter(Boolean);
-  const verdict = !all ? 'Noch nicht gültig' : avg>=90 ? 'Bestanden mit Auszeichnung' : 'Bestanden';
-  show('<article class="lic"><header><h2>Laborführerschein</h2><span class="cls">Chemie · 8 NTG</span></header>'
-   +'<dl><dt>1. Name</dt><dd id="ln"></dd><dt>2. Datum</dt><dd>'+new Date().toLocaleDateString('de-DE')+'</dd><dt>3. Punkte</dt><dd>'+pts+' · '+stSum+' von '+(N*3)+' Sternen</dd><dt>4. Zeit</dt><dd>'+Math.floor(sec/60)+' min '+(sec%60)+' s</dd></dl>'
-   +'<div class="tablewrap"><table><thead><tr><th>Station</th><th>Ergebnis</th><th>Stempel</th></tr></thead><tbody>'
-   +STATIONS.map((s,i)=>{ const r = S.results[i]; return '<tr><td><b>'+(i+1)+'</b>'+esc(s.title)+'</td><td class="n">'+(r?r.pct+' %':'–')+'<br>'+stars(r?r.stars:0)+'</td><td>'+(hasStamp(i)?'<span class="okm">geprüft</span>':'<span class="nom">offen</span>')+'</td></tr>'; }).join('')
-   +'</tbody></table></div><p class="verdict">'+verdict+'</p>'
-   +(all ? '' : '<p>Dir fehlt noch der Stempel für Station '+open.join(', ')+'.</p>')
-   +'<p class="fine">Gilt nur zusammen mit deiner Unterschrift auf der Liste „Sicherheitsunterweisung“ deiner Lehrkraft. Die Regeln gelten in jeder Chemiestunde.</p><p class="wm">Nr. '+code+'</p></article>'
-   +'<div class="row">'+(all ? '' : '<button class="btn" id="l1" type="button">Station '+open[0]+' starten</button>')+'<button class="btn ghost" id="l2" type="button">Zur Übersicht</button>'+(all ? '<button class="btn ghost" id="l3" type="button">Erneuter Versuch</button>' : '')+'</div>'
-   +(all ? '<p class="small">Zeig den Führerschein deiner Lehrkraft oder mach einen Screenshot. Über die Übersicht kannst du einzelne Stationen noch einmal üben. Mit „Erneuter Versuch“ beginnst du die ganze Prüfung neu.</p>' : ''));
-  $('#ln').textContent = S.name || '(kein Name eingetragen)';
-  const l1 = $('#l1'); if(l1) l1.onclick = () => startStation(open[0]-1);
-  $('#l2').onclick = home;
-  const l3 = $('#l3'); if(l3) l3.onclick = () => {
-    if(!l3.dataset.sure){ l3.dataset.sure = '1'; l3.textContent = 'Alle Stempel zurücksetzen und neu beginnen? Noch einmal tippen.'; return; }
-    S.attempt++; S.runs = 0; S.streak = 0; S.results = STATIONS.map(()=>null); save(); home(); };
-}
-
-$('#home').onclick = home;
-load(); if(!resume()) home();
-</script>
-
-</body></html>
+/* ---------- Führerschein als PNG (zum Ausdrucken) ---------- */
+const DL = (window.claude && window.claude.use) ? window.claude.use('downloads').catch(()=>null) : Promise.resolve(null);
+function licenceCanvas(d){
+  const W = 1800, H = 1200, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const INK = '#3A1E2A', LINE = '#D49DB1', BG = '#F3D2DC', BLUE = '#1C4FA3';
+  const FD = '"Avenir Next Condensed","Roboto Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif';
+  const FB = 'system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+  const FM = 'ui-monospace,"SF Mono","Cascadia Mono",Consolas,Menlo,monospace';
+  const rr = (a,b,w,h,r) => { x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); };
+  const text = (s,px,py,font,col,align,alpha) => { x.font = font; x.fillStyle = col||INK; x.textAlign = align||'left'; x.globalAlpha = alpha||1; x.fillText(s,px,py); x.globalAlpha = 1; };
+  const star = (cx,cy,R,on) => { x.beginPath(); for(let i=0;i<10;i++){ const a = -Math.PI/2 + i*Math.PI/5, r = i%2 ? R*0.42 : R; x.lineTo(cx+r*Math.cos(a), cy+r*Math.sin(a)); } x.closePath();
+    if(on){ x.fillStyle = '#D99A00'; x.fill(); x.strokeStyle = '#6B4A00'; x.lineWidth = 2; } else { x.strokeStyle = LINE; x.lineWidth = 3; } x.stroke(); };
+  // Karte mit feinem Linienmuster
+  x.fillStyle = '#FFFFFF'; x.fillRect(0,0,W,H);
+  rr(20,20,W-40,H-40,40); x.fillStyle = BG; x.fill();
+  x.save(); rr(20,20,W-40,H-40,40); x.clip(); x.strokeStyle = 'rgba(255,255,255,.3)'; x.lineWidth = 2;
+  for(let i=-H;i<W;i+=26){ x.beginPath(); x.moveTo(i,H); x.lineTo(i+H*0.47,0); x.stroke(); }
+  for(let i=0;i<W+H*2.2;i+=38){ x.beginPath(); x.moveTo(i,0); x.lineTo(i-H*2.1,H); x.stroke(); }
+  x.restore();
+  rr(20,20,W-40,H-40,40); x.strokeStyle = LINE; x.lineWidth = 5; x.stroke();
+  // Kopf
+  text('LABORFÜHRERSCHEIN',80,142,'bold 88px '+FD);
+  text('Chemie · 8 NTG',W-80,142,'30px '+FM,INK,'right');
+  x.strokeStyle = INK; x.lineWidth = 4; x.beginPath(); x.moveTo(80,174); x.lineTo(W-80,174); x.stroke();
+  // Felder
+  [['1. Name',d.name],['2. Datum',d.date],['3. Punkte',d.points],['4. Zeit',d.time]].forEach((f,i) => {
+    text(f[0],80,272+i*62,'24px '+FM,INK,'left',.7); text(f[1],290,274+i*62,'bold 38px '+FB); });
+  // großer Stempel
+  x.save(); x.translate(1480,346); x.rotate(-0.16); x.globalAlpha = .88; x.strokeStyle = BLUE;
+  x.lineWidth = 6; x.beginPath(); x.arc(0,0,138,0,Math.PI*2); x.stroke(); x.lineWidth = 2; x.beginPath(); x.arc(0,0,124,0,Math.PI*2); x.stroke(
